@@ -10,12 +10,17 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
 
-const char * helloStr  = "__kernel void "
-                         "hello(void) "
-                         "{ "
-                         "  "
-                         "} ";
+static std::string LoadFromFile(const std::string&& path)
+{
+    std::ifstream t(path);
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+    return buffer.str();
+}
 
 int main(void)
 {
@@ -53,8 +58,8 @@ int main(void)
             std::cout << "Device #" << i << ": " << devices[i].getInfo<CL_DEVICE_NAME>() << std::endl;
         }
 
-        cl::Program::Sources source(1,
-                                    std::make_pair(helloStr, strlen(helloStr)));
+        std::string kernalStr = LoadFromFile("kernals/VectorAdd.cl");
+        cl::Program::Sources source(1,std::make_pair(kernalStr.data(), kernalStr.size()));
         cl::Program program_ = cl::Program(context, source);
         program_.build(devices);
 
@@ -62,10 +67,11 @@ int main(void)
 
         cl::Event event;
         cl::CommandQueue queue(context, devices[0], 0, &err);
+        constexpr size_t localItemSize = 64;
         queue.enqueueNDRangeKernel(
                 kernel,
                 cl::NullRange,
-                cl::NDRange(4,4),
+                cl::NDRange(localItemSize,localItemSize),
                 cl::NullRange,
                 NULL,
                 &event);
