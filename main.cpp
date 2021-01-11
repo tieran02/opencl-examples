@@ -6,8 +6,10 @@
 #include <CL/cl.hpp>
 #endif
 
+#include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -24,6 +26,22 @@ static std::string LoadFromFile(const std::string&& path)
 
 int main(void)
 {
+    constexpr size_t ARRAY_SIZE = 4096;
+    std::array<int, ARRAY_SIZE> A;
+    std::array<int, ARRAY_SIZE> B;
+    std::array<int, ARRAY_SIZE> C;
+
+    /* initialize random seed: */
+    srand(time(nullptr));
+
+	//fill vector with random numbers
+    for (size_t i = 0; i < ARRAY_SIZE; i++)
+    {   
+        A[i] = rand() % 100 + 1;
+        B[i] = rand() % 100 + 1;
+    }
+
+	
     cl_int err = CL_SUCCESS;
     try {
 
@@ -50,6 +68,7 @@ int main(void)
                 };
         cl::Context context(CL_DEVICE_TYPE_ALL, properties);
 
+
         std::vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
 
         // Print number of devices and list of devices
@@ -58,25 +77,41 @@ int main(void)
             std::cout << "Device #" << i << ": " << devices[i].getInfo<CL_DEVICE_NAME>() << std::endl;
         }
 
+        cl::Buffer bufferA(context, CL_MEM_READ_ONLY, ARRAY_SIZE * sizeof(int), nullptr, &err);
+        cl::Buffer bufferB(context, CL_MEM_READ_ONLY, ARRAY_SIZE * sizeof(int), nullptr, &err);
+        cl::Buffer bufferC(context, CL_MEM_WRITE_ONLY, ARRAY_SIZE * sizeof(int), nullptr, &err);
+
+        cl::CommandQueue queue(context, devices[0], 0, &err);
+        queue.enqueueWriteBuffer(bufferA, CL_TRUE, 0, A.size() * sizeof(int), A.data());
+        queue.enqueueWriteBuffer(bufferB, CL_TRUE, 0, B.size() * sizeof(int), B.data());
+    	
         std::string kernalStr = LoadFromFile("kernals/VectorAdd.cl");
         cl::Program::Sources source(1,std::make_pair(kernalStr.data(), kernalStr.size()));
         cl::Program program_ = cl::Program(context, source);
         program_.build(devices);
 
-        cl::Kernel kernel(program_, "hello", &err);
+        cl::Kernel kernel(program_, "vector_add", &err);
+        kernel.setArg(0, sizeof(bufferA), &bufferA);
+        kernel.setArg(1, sizeof(bufferB), &bufferB);
+        kernel.setArg(2, sizeof(bufferC), &bufferC);
 
-        cl::Event event;
-        cl::CommandQueue queue(context, devices[0], 0, &err);
-        constexpr size_t localItemSize = 64;
+        constexpr size_t localItemSize = 256;
         queue.enqueueNDRangeKernel(
                 kernel,
-                cl::NullRange,
-                cl::NDRange(localItemSize,localItemSize),
-                cl::NullRange,
-                NULL,
-                &event);
+                cl::NDRange(0),
+                cl::NDRange(ARRAY_SIZE),
+				cl::NDRange(localItemSize));
 
+
+        cl::Event event;
+        queue.enqueueReadBuffer(bufferC, true, 0, ARRAY_SIZE * sizeof(int), C.data(), nullptr, &event);
+        //wait for event to finish
         event.wait();
+    	
+        // Display the result to the screen
+        for (int i = 0; i < ARRAY_SIZE; i++)
+            printf("%d + %d = %d\n", A[i], B[i], C[i]);
+
     }
     catch (cl::Error err) {
         std::cerr
