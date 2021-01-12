@@ -15,6 +15,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include "stopwatch.h"
 
 static std::string LoadFromFile(const std::string&& path)
 {
@@ -24,24 +25,27 @@ static std::string LoadFromFile(const std::string&& path)
     return buffer.str();
 }
 
-int main(void)
+constexpr size_t ARRAY_SIZE = 65536;
+constexpr size_t localItemSize = 512;
+
+int computeAdd()
 {
-    constexpr size_t ARRAY_SIZE = 4096;
     std::array<int, ARRAY_SIZE> A;
     std::array<int, ARRAY_SIZE> B;
     std::array<int, ARRAY_SIZE> C;
+    Stopwatch stopwatch;
 
     /* initialize random seed: */
     srand(time(nullptr));
 
-	//fill vector with random numbers
+    //fill vector with random numbers
     for (size_t i = 0; i < ARRAY_SIZE; i++)
-    {   
+    {
         A[i] = rand() % 100 + 1;
         B[i] = rand() % 100 + 1;
     }
 
-	
+
     cl_int err = CL_SUCCESS;
     try {
 
@@ -61,11 +65,11 @@ int main(void)
         }
 
         cl_context_properties properties[] =
-                {
-                        CL_CONTEXT_PLATFORM,
-                        (cl_context_properties)(platforms[0])(),
-                        0
-                };
+        {
+                CL_CONTEXT_PLATFORM,
+                (cl_context_properties)(platforms[0])(),
+                0
+        };
         cl::Context context(CL_DEVICE_TYPE_ALL, properties);
 
 
@@ -84,9 +88,9 @@ int main(void)
         cl::CommandQueue queue(context, devices[0], 0, &err);
         queue.enqueueWriteBuffer(bufferA, CL_TRUE, 0, A.size() * sizeof(int), A.data());
         queue.enqueueWriteBuffer(bufferB, CL_TRUE, 0, B.size() * sizeof(int), B.data());
-    	
+
         std::string kernalStr = LoadFromFile("kernals/VectorAdd.cl");
-        cl::Program::Sources source(1,std::make_pair(kernalStr.data(), kernalStr.size()));
+        cl::Program::Sources source(1, std::make_pair(kernalStr.data(), kernalStr.size()));
         cl::Program program_ = cl::Program(context, source);
         program_.build(devices);
 
@@ -95,34 +99,65 @@ int main(void)
         kernel.setArg(1, sizeof(bufferB), &bufferB);
         kernel.setArg(2, sizeof(bufferC), &bufferC);
 
-        constexpr size_t localItemSize = 256;
+        stopwatch.Start();
+    	
         queue.enqueueNDRangeKernel(
-                kernel,
-                cl::NDRange(0),
-                cl::NDRange(ARRAY_SIZE),
-				cl::NDRange(localItemSize));
+            kernel,
+            cl::NDRange(0),
+            cl::NDRange(ARRAY_SIZE),
+            cl::NDRange(localItemSize));
 
 
         cl::Event event;
         queue.enqueueReadBuffer(bufferC, true, 0, ARRAY_SIZE * sizeof(int), C.data(), nullptr, &event);
         //wait for event to finish
         event.wait();
-    	
-        // Display the result to the screen
-        for (int i = 0; i < ARRAY_SIZE; i++)
-            printf("%d + %d = %d\n", A[i], B[i], C[i]);
+
+        stopwatch.Stop();
+        std::cout << "compute add " << stopwatch.Time() << std::endl;
 
     }
     catch (cl::Error err) {
         std::cerr
-                << "ERROR: "
-                << err.what()
-                << "("
-                << err.err()
-                << ")"
-                << std::endl;
+            << "ERROR: "
+            << err.what()
+            << "("
+            << err.err()
+            << ")"
+            << std::endl;
+    }
+    return EXIT_SUCCESS;
+}
+
+void add()
+{
+    std::array<int, ARRAY_SIZE> A;
+    std::array<int, ARRAY_SIZE> B;
+    std::array<int, ARRAY_SIZE> C;
+    Stopwatch stopwatch;
+
+    /* initialize random seed: */
+    srand(time(nullptr));
+
+    //fill vector with random numbers
+    for (size_t i = 0; i < ARRAY_SIZE; i++)
+    {
+        A[i] = rand() % 100 + 1;
+        B[i] = rand() % 100 + 1;
     }
 
-    return EXIT_SUCCESS;
+    stopwatch.Start();
+    for (int i = 0; i < ARRAY_SIZE; ++i)
+    {
+        C[i] = A[i] + B[i];
+    }
 
+    stopwatch.Stop();
+    std::cout << "add " << stopwatch.Time() << std::endl;
+}
+
+int main(void)
+{
+    add();
+    computeAdd();
 }

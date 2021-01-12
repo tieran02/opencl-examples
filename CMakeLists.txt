@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(OpenCL REQUIRED)
 
-add_executable(opencl main.cpp)
+add_executable(opencl main.cpp "stopwatch.h")
 target_link_libraries(opencl OpenCL::OpenCL)
 
 add_custom_target(build-time-make-directory ALL
