@@ -1,0 +1,3 @@
+add_executable(MergeSortExample mergesortexample.cpp)
+target_link_libraries(MergeSortExample OpenCL::OpenCL)
+target_include_directories(MergeSortExample PRIVATE ${PROJECT_SOURCE_DIR}/shared)
