@@ -1,0 +1,3 @@
+add_executable(HistogramExample histogramexample.cpp)
+target_link_libraries(HistogramExample OpenCL::OpenCL)
+target_include_directories(HistogramExample PRIVATE ${PROJECT_SOURCE_DIR}/shared)
