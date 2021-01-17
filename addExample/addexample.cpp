@@ -13,17 +13,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <fstream>
-#include <sstream>
+#include <util.h>
 #include "stopwatch.h"
-
-static std::string LoadFromFile(const std::string&& path)
-{
-    std::ifstream t(path);
-    std::stringstream buffer;
-    buffer << t.rdbuf();
-    return buffer.str();
-}
 
 constexpr size_t ARRAY_SIZE = 65536;
 constexpr size_t localItemSize = 512;

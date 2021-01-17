@@ -290,3 +290,7 @@ CMakeUserPresets.json
 
 # End of https://www.toptal.com/developers/gitignore/api/clion,clion+iml,clion+all,c++,git,cmake
 .vs/
+
+.vscode/
+
+build/
