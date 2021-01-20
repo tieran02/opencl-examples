@@ -3,7 +3,7 @@ __kernel void hello(void)
 
 }
 
-__kernel void histogram_partial_image_rgba_unorm8(image2d_t img, global uint *histogram)
+__kernel void histogram_partial_image_rgba_unorm8(image2d_t img, int num_pixels_per_work_item, global uint *histogram)
 {
     int local_size = get_local_size(0) * get_local_size(1);
     int image_width = get_image_width(img);
@@ -32,23 +32,28 @@ __kernel void histogram_partial_image_rgba_unorm8(image2d_t img, global uint *hi
     //The barrier function will either flush any variables stored in local memory or queue a memory fence to ensure correct ordering of memory operations to local memory.
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    //create partial histogram
-    if((x < image_width) && (y < image_height))
+    int i, idx;
+    for(i=0, idx=x; i < num_pixels_per_work_item; i++, idx += get_global_size(0))
     {
-        sampler_t _sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE |  CLK_FILTER_NEAREST;
-        float4 clr = read_imagef(img, 
-                                _sampler,
-                                (float2)(x,y));
+            
+        //create partial histogram
+        if((idx < image_width) && (y < image_height))
+        {
+            sampler_t _sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE |  CLK_FILTER_NEAREST;
+            float4 clr = read_imagef(img, 
+                                    _sampler,
+                                    (float2)(idx,y));
 
-        uchar index_x, index_y, index_z;
-        index_x = convert_uchar_sat(clr.x * 255.0f);
-        index_y = convert_uchar_sat(clr.y * 255.0f);
-        index_z = convert_uchar_sat(clr.z * 255.0f);
+            uchar index_x = convert_uchar_sat(clr.x * 255.0f);
+            uchar index_y = convert_uchar_sat(clr.y * 255.0f);
+            uchar index_z = convert_uchar_sat(clr.z * 255.0f);
 
-        //atomic increment
-        atomic_inc(&tmp_histogram[index_x]);
-        atomic_inc(&tmp_histogram[index_y + 256]);
-        atomic_inc(&tmp_histogram[index_z + 512]);
+            //atomic increment
+            atomic_inc(&tmp_histogram[index_x]);
+            atomic_inc(&tmp_histogram[index_y + 256]);
+            atomic_inc(&tmp_histogram[index_z + 512]);
+        }
+
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);

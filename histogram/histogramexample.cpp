@@ -166,7 +166,8 @@ void computeHistogram()
         cl::Buffer partial_histogram_buffer(context, CL_MEM_READ_WRITE, num_groups * 257 * 3 * sizeof(unsigned int), nullptr);
 
         histogram_rgba_unorm8.setArg(0, sizeof(cl::Memory), &input_image_unorm8);
-        histogram_rgba_unorm8.setArg(1, sizeof(cl::Memory), &partial_histogram_buffer);
+        histogram_rgba_unorm8.setArg(1, sizeof(int), &num_pixels_per_work_item);
+        histogram_rgba_unorm8.setArg(2, sizeof(cl::Memory), &partial_histogram_buffer);
 
         cl::Buffer histogramBuffer(context, CL_MEM_WRITE_ONLY, num_groups * 257 * 3 * sizeof(unsigned int), nullptr);
         histogram_sum_partial_results_unorm8.setArg(0, sizeof(cl::Memory), &partial_histogram_buffer);
