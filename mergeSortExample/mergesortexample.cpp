@@ -106,7 +106,8 @@ void cpuMerge(int *array, int leftIndex, int midIndex, int rightIndex)
 
 void ComputeMergeSort()
 {
-    constexpr int array_size = 25600;
+    constexpr int local_work_size = 64;
+    constexpr int array_size = 256;
     std::array<int, array_size> array = randomArray<array_size>();
     std::array<int, array_size> sortedArray{};
 
@@ -147,6 +148,7 @@ void ComputeMergeSort()
 
         //create buffers
         cl::Buffer unsortedBuffer(context, CL_MEM_READ_ONLY, array.size() * sizeof(int), nullptr, &err);
+        cl::Buffer partialSortedBuffer(context, CL_MEM_READ_WRITE, array.size() * sizeof(int), nullptr, &err);
         cl::Buffer sortedBuffer(context, CL_MEM_WRITE_ONLY, array.size() * sizeof(int), nullptr, &err);
 
         //copy unsorted data to buffer
@@ -157,31 +159,60 @@ void ComputeMergeSort()
         const cl::Program::Sources source(1, std::make_pair(kernalStr.data(), kernalStr.size()));
         const cl::Program program = BuildProgram(context, devices, source);
 
-        cl::Kernel kernel(program, "MergeSort", &err);
-        kernel.setArg(0, sizeof(unsortedBuffer), &unsortedBuffer);
-        kernel.setArg(1, sizeof(sortedBuffer), &sortedBuffer);
-        kernel.setArg(2, sizeof(int), &array_size);
+        cl::Kernel sortKernel(program, "MergeSort", &err);
+        sortKernel.setArg(0, sizeof(unsortedBuffer), &unsortedBuffer);
+        sortKernel.setArg(1, sizeof(partialSortedBuffer), &partialSortedBuffer);
+        sortKernel.setArg(2, sizeof(int), &array_size);
 
+        cl::Kernel mergeKernel(program, "Merge", &err);
+        mergeKernel.setArg(3,sizeof(int), &array_size);
 
-        //get max work-group size that can be used for kernel
+        //get max work-group size that can be used for sortKernel
         size_t workgroup_size;
-        kernel.getWorkGroupInfo(devices[0], CL_KERNEL_WORK_GROUP_SIZE, &workgroup_size);
+        sortKernel.getWorkGroupInfo(devices[0], CL_KERNEL_WORK_GROUP_SIZE, &workgroup_size);
 
 
         Stopwatch stopwatch;
         stopwatch.Start();
 
-        queue.enqueueNDRangeKernel(
-                kernel,
-                cl::NDRange(0),
-                cl::NDRange(array_size),
-                cl::NDRange(64));
+        cl::NDRange globalWorkSize(array_size);
+        cl::NDRange localWorkSize(local_work_size);
 
+        queue.enqueueNDRangeKernel(
+                sortKernel,
+                cl::NDRange(0),
+                globalWorkSize,
+                localWorkSize);
+
+
+        //now continue with global merge
+        unsigned int locLimit = 2 * local_work_size;
+        unsigned int stride = local_work_size;
+
+        for(; stride <= array_size; stride <<= 1)
+        {
+            //get work sizes
+            int neededWorkers = array_size / stride;
+
+            localWorkSize = cl::NDRange(std::min(local_work_size, neededWorkers));
+            globalWorkSize = GetGlobalSize(neededWorkers, localWorkSize[0]);
+
+            mergeKernel.setArg(0, sizeof(cl::Buffer), &partialSortedBuffer);
+            mergeKernel.setArg(1, sizeof(cl::Buffer), &sortedBuffer);
+            mergeKernel.setArg(2, sizeof(cl_uint), &stride);
+
+            queue.enqueueNDRangeKernel(
+                    mergeKernel,
+                    cl::NDRange(0),
+                    globalWorkSize,
+                    localWorkSize);
+        }
 
         cl::Event event;
         queue.enqueueReadBuffer(sortedBuffer, true, 0, array_size * sizeof(int), sortedArray.data(), nullptr, &event);
         //wait for event to finish
         event.wait();
+        queue.finish();
 
         stopwatch.Stop();
         std::cout << "compute merge sort " << stopwatch.Time() << std::endl;

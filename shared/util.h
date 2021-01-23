@@ -47,6 +47,15 @@ static cl::Program BuildProgram(cl::Context context, const std::vector<cl::Devic
 	}
 }
 
+static size_t GetGlobalSize(size_t Count, size_t LocalWorkSize)
+{
+    size_t r = Count % LocalWorkSize;
+    if(r == 0)
+        return Count;
+    else
+        return Count + LocalWorkSize - r;
+}
+
 static const char* getErrorString(cl_int error)
 {
     switch (error) {

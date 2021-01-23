@@ -43,3 +43,28 @@ __kernel void MergeSort(__global const int* unsorted, __global int* sorted, cons
     // Write output
     sorted[i] = local_buffer[i];
 }
+
+__kernel void Merge(const __global int* inArray, __global int* outArray, const uint stride, const int size)
+{
+    const uint baseIndex = get_global_id(0) * stride;
+	const char dir = 1;
+
+	uint middle = baseIndex + (stride >> 1);
+	uint left = baseIndex;
+	uint right = middle;
+	bool selectLeft;
+
+	if ((baseIndex + stride) > size) return;
+
+    for (uint i = baseIndex; i < (baseIndex + stride); i++) {
+		// check which value should be written out
+		selectLeft = (left < middle && (right == (baseIndex + stride) || inArray[left] <= inArray[right])) == dir;
+
+		// write out
+		outArray[i] = (selectLeft) ? inArray[left] : inArray[right];
+
+		//increase counter accordingly
+		left += selectLeft;
+		right += 1 - selectLeft;
+	}
+}
